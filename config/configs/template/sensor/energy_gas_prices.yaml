@@ -1,0 +1,176 @@
+##############################################################
+##############################################################
+##
+## Preise
+##
+##############################################################
+##############################################################
+
+## Strom - Preis pro kWh
+- name: "Strompreis pro kWh in Euro"
+  icon: mdi:currency-eur
+  unit_of_measurement: €/kWh
+  state: 0.3438
+
+## Gas - Preis pro m³
+- name: "Gaspreis pro m³ in Euro"
+  unit_of_measurement: "€/m³"
+  state: 0.097
+  
+## Wasser - Preis pro m³
+- name: "Wasserpreis pro m³ in Euro"
+  unit_of_measurement: "€/m³"
+  state: 1.85
+
+## Letzte ablesung
+- name: "Strom letzte Ablesung"
+  unit_of_measurement: kWh
+  state: 580045
+  
+##############################################################
+##############################################################
+##
+## Energie
+##
+##############################################################
+##############################################################
+
+#-------------------------------------------------------------
+# Messwerte
+#-------------------------------------------------------------
+
+## Verbrauchte kWh insgesamt
+- name: "Hausverbauch Strom in kWh"
+  icon: mdi:transmission-tower-export
+  unit_of_measurement: kWh
+  state_class: "total_increasing"
+  device_class: energy
+  state: > 
+    {% set powerUsedGridL1 = states('sensor.shellyem3_e89f6d85229a_channel_a_energy') | float %}
+    {% set powerUsedGridL2 = states('sensor.shellyem3_e89f6d85229a_channel_b_energy') | float %}
+    {% set powerUsedGridL3 = states('sensor.shellyem3_e89f6d85229a_channel_c_energy') | float %}
+    {{ powerUsedGridL1 + powerUsedGridL2 + powerUsedGridL3 }}
+
+## Aktuelle Leistungsabgabe in W
+- name: "Hausverbauch aktuell in W"
+  icon: mdi:meter-electric-outline
+  unit_of_measurement: W
+  state: > 
+    {% set powerGridL1 = states('sensor.shellyem3_e89f6d85229a_channel_a_power') | float %}
+    {% set powerGridL2 = states('sensor.shellyem3_e89f6d85229a_channel_b_power') | float %}
+    {% set powerGridL3 = states('sensor.shellyem3_e89f6d85229a_channel_c_power') | float %}
+    {{ powerGridL1 + powerGridL2 + powerGridL3 }}
+
+## Verbrauch zu Preis insgesamt
+- name: "Strompreis in Euro insgesamt"
+  icon: mdi:currency-eur
+  unit_of_measurement: €
+  state_class: "total_increasing"
+  state: > 
+    {% set powerUsedGrid = states('sensor.hausverbauch_strom_in_kwh') | float %}
+    {% set powerRate = states('sensor.strompreis_pro_kwh_in_euro') | float %}
+    {{ (powerUsedGrid * powerRate) | round(2, default=0) }}
+
+## Aktuelle Leistungsabgabe in kW
+- name: "Hausverbauch aktuell in kW"
+  icon: mdi:meter-electric-outline
+  unit_of_measurement: kW
+  state: > 
+    {% set powerGrid = states('sensor.hausverbauch_aktuell_in_w') | float %}
+    {{ powerGrid / 1000 }}
+
+## Aktuelle Kosten pro Stunde
+- name: "Hausverbauch aktuell Kosten pro Stunde"
+  icon: mdi:currency-eur
+  unit_of_measurement: €
+  state: > 
+    {% set powerGrid = states('sensor.hausverbauch_aktuell_in_kw') | float %}
+    {% set powerRate = states('sensor.strompreis_pro_kwh_in_euro') | float %}
+    {{ (powerGrid * powerRate) | round(2, default=0) }}
+
+#-------------------------------------------------------------
+# Historie (InfluxDB Sensoren)
+#-------------------------------------------------------------
+
+## Kosten vergangen 24h
+- name: "Hausverbauch Kosten letzte 24h"
+  icon: mdi:currency-eur
+  unit_of_measurement: €
+  state: > 
+    {% set powerGrid = states('sensor.stromverbrauch_der_letzten_24h') | float %}
+    {% set powerRate = states('sensor.strompreis_pro_kwh_in_euro') | float %}
+    {{ (powerGrid * powerRate) | round(2, default=0) }}
+    
+## Kosten vergangene 7d
+- name: "Hausverbauch Kosten letzte 7d"
+  icon: mdi:currency-eur
+  unit_of_measurement: €
+  state: > 
+    {% set powerGrid = states('sensor.stromverbrauch_der_letzten_woche') | float %}
+    {% set powerRate = states('sensor.strompreis_pro_kwh_in_euro') | float %}
+    {{ (powerGrid * powerRate) | round(2, default=0) }}
+
+## Kosten vergangene MOnat
+- name: "Hausverbauch Kosten letzten Monat"
+  icon: mdi:currency-eur
+  unit_of_measurement: €
+  state: > 
+    {% set powerGrid = states('sensor.stromverbrauch_der_letzten_monat') | float %}
+    {% set powerRate = states('sensor.strompreis_pro_kwh_in_euro') | float %}
+    {{ (powerGrid * powerRate) | round(2, default=0) }}
+
+## Kosten vergangene Jahr
+- name: "Hausverbauch Kosten letztes jahr"
+  icon: mdi:currency-eur
+  unit_of_measurement: €
+  state: > 
+    {% set powerGrid = states('sensor.stromverbrauch_im_vergangen_jahr') | float %}
+    {% set powerRate = states('sensor.strompreis_pro_kwh_in_euro') | float %}
+    {{ (powerGrid * powerRate) | round(2, default=0) }}
+
+#-------------------------------------------------------------
+# Schätzungen (basierend auf Historie)
+#-------------------------------------------------------------
+
+## Kosten nächste 24h
+- name: "Hausverbauch Kosten nächste 24h"
+  icon: mdi:currency-eur
+  unit_of_measurement: €
+  state: > 
+    {% set usageLast7d = states('sensor.hausverbauch_kosten_letzte_7d') | float %}
+    {{ (usageLast7d / 7) | round(2, default=0) }}
+    
+## Kosten für aktuellen Monat
+- name: "Hausverbauch aktueller Monat"
+  icon: mdi:currency-eur
+  unit_of_measurement: €
+  state: > 
+    {% set tageswert = states('sensor.hausverbauch_kosten_nachste_24h') | float %}
+    {{ (tageswert * 7) | round(2, default=0) }}
+
+##############################################################
+##############################################################
+##
+## Gas
+##
+##############################################################
+##############################################################
+
+## Verbrauchte m³ insgesamt
+- name: "Hausverbrauch Gas in m³"
+  unit_of_measurement: "m³"
+  state_class: "total_increasing"
+  state: 0
+
+  
+##############################################################
+##
+## Wasser
+##
+##############################################################
+
+## Verbrauchte m³ insgesamt
+- name: "Hausverbrauch Wasser in m³"
+  unit_of_measurement: "m³"
+  state_class: "total_increasing"
+  state: 0

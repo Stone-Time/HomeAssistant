@@ -1,0 +1,82 @@
+- platform: influxdb
+  api_version: 2
+  ssl: false
+  host: 192.168.0.40
+  port: 8086
+  verify_ssl: false
+  token: !secret influxdb_token
+  organization: !secret influxdb_organization
+  bucket: !secret influxdb_bucket
+  queries_flux:
+    - name: "Stromverbrauch der letzten 24h"
+      unit_of_measurement: kWh
+      range_start: "-1d"
+      query: >
+        filter(fn: (r) => r["_measurement"] == "kWh")
+        |> filter(fn: (r) => r["_field"] == "value")
+        |> filter(fn: (r) => r["domain"] == "sensor")
+        |> filter(fn: (r) => r["entity_id"] == "hausverbauch_strom_in_kwh")
+        |> increase()
+        |> last()
+      group_function: last
+    - name: "Stromverbrauch der letzten Woche"
+      unit_of_measurement: kWh
+      range_start: "-7d"
+      query: >
+        filter(fn: (r) => r["_measurement"] == "kWh")
+        |> filter(fn: (r) => r["_field"] == "value")
+        |> filter(fn: (r) => r["domain"] == "sensor")
+        |> filter(fn: (r) => r["entity_id"] == "hausverbauch_strom_in_kwh")
+        |> increase()
+        |> last()
+      group_function: last
+    - name: "Stromverbrauch der letzten Monat"
+      unit_of_measurement: kWh
+      range_start: "-4w"
+      query: >
+        filter(fn: (r) => r["_measurement"] == "kWh")
+        |> filter(fn: (r) => r["_field"] == "value")
+        |> filter(fn: (r) => r["domain"] == "sensor")
+        |> filter(fn: (r) => r["entity_id"] == "hausverbauch_strom_in_kwh")
+        |> increase()
+        |> last()
+      group_function: last
+    - name: "Stromverbrauch im vergangen Jahr"
+      unit_of_measurement: kWh
+      range_start: "-365d"
+      query: >
+        filter(fn: (r) => r["_measurement"] == "kWh")
+        |> filter(fn: (r) => r["_field"] == "value")
+        |> filter(fn: (r) => r["domain"] == "sensor")
+        |> filter(fn: (r) => r["entity_id"] == "hausverbauch_strom_in_kwh")
+        |> increase()
+        |> last()
+      group_function: last
+    - name: "Stromverbrauch diesen Monat"
+      unit_of_measurement: kWh
+      imports:
+        - math
+      range_start: 0
+      query: >
+        range(
+          start: {{ (now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)).replace(day=1) | as_timestamp() | int() }},
+          stop: {{ now().replace(day=1, hour=0, minute=0, second=0, microsecond=0) | as_timestamp() | int() }}
+        )
+        |> filter(fn: (r) => r["_measurement"] == "kWh")
+        |> filter(fn: (r) => r["_field"] == "value")
+        |> filter(fn: (r) => r["domain"] == "sensor")
+        |> filter(fn: (r) => r["entity_id"] == "hausverbauch_strom_in_kwh")
+        |> increase()
+        |> last()
+      group_function: last
+    - name: "Stromverbrauch im vergangen Jahr"
+      unit_of_measurement: kWh
+      range_start: "-365d"
+      query: >
+        filter(fn: (r) => r["_measurement"] == "kWh")
+        |> filter(fn: (r) => r["_field"] == "value")
+        |> filter(fn: (r) => r["domain"] == "sensor")
+        |> filter(fn: (r) => r["entity_id"] == "hausverbauch_strom_in_kwh")
+        |> increase()
+        |> last()
+      group_function: last
