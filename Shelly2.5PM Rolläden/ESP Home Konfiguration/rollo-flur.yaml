@@ -1,0 +1,439 @@
+#### Grundeinstellungen
+esphome:
+  name: rollo-flur
+  platform: ESP8266
+  board: esp01_1m
+
+#### WIFI Einstellungen
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+  fast_connect: true
+  power_save_mode: LIGHT
+  output_power: 10dB
+  ap:
+    ssid: "rollo-flur"
+    password: "1234567890"
+
+### Portal (nur nötig zum einrichten)
+captive_portal:
+
+### Logger aktivieren
+logger:
+  level: WARN
+
+### API Zugang
+api:
+  password: !secret api_pwd
+
+### OTA (Over the air updates)
+ota:
+  password: !secret ota_pwd
+
+#### Relays
+switch:
+  - platform: shutdown
+    id: _shutdown
+    name: "Shelly 2.5 Shutdown"
+
+  - platform: gpio
+    pin: GPIO15
+    name: "Shelly 2.5 Close Relay"
+    restore_mode: RESTORE_DEFAULT_OFF
+    internal: true
+    id: close_relay
+    interlock: &interlock_group [open_relay, close_relay]
+    interlock_wait_time: 200ms
+
+  - platform: gpio
+    pin: GPIO4
+    name: "Shelly 2.5 Open Relay"
+    restore_mode: RESTORE_DEFAULT_OFF
+    internal: true
+    id: open_relay
+    interlock: *interlock_group
+    interlock_wait_time: 200ms
+
+  - platform: template
+    id: block_control
+    name: "Rollo Flur Blockieren"
+    optimistic: true
+
+  - platform: template
+    name: "Move DOWN"
+    internal: true
+    optimistic: true
+    lambda: |-
+      if (id(switch1).state && !id(block_control).state) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+      then:
+        cover.open: rolladen
+    turn_off_action:
+      then:
+        cover.stop: rolladen
+
+  - platform: template
+    name: "Move UP"
+    optimistic: true
+    internal: true
+    lambda: |-
+      if (id(switch2).state && !id(block_control).state) {
+        return true;
+      } else {
+        return false;
+      }
+    turn_on_action:
+      then:
+        cover.close: rolladen
+    turn_off_action:
+      then:
+        cover.stop: rolladen
+
+### Globale Zustände merken
+globals:
+  - id: manual_mode
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: floor_up_state
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: floor_down_state
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: house_up_state
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: house_down_state
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+### Schaltersteuerung
+binary_sensor:
+  - platform: gpio
+    pin: GPIO13
+    name: "Shelly 2.5 Open Button"
+    internal: true
+    id: switch1
+    filters:
+      - delayed_on_off: 20ms
+    on_multi_click:
+      # Einzelclick
+      - timing:
+          - ON for at most 400ms
+          - OFF for at least 300ms
+        then:
+          - cover.open: rolladen
+          - delay: 2s
+          - cover.stop: rolladen
+      # Doppelclick
+      - timing:
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at least 300ms
+        then:
+          - cover.open: rolladen
+      # 3fach click
+      - timing:
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at least 300ms
+        then:
+          - cover.open: rolladen
+          - lambda: |-
+              if (!id(block_control).state) {
+                id(floor_up_state) = true;
+                id(floor_down_state) = false;
+                id(house_up_state) = false;
+                id(house_down_state) = false;
+              }
+          - delay: 2s
+          - lambda: |-
+              id(floor_up_state) = false;
+              id(floor_down_state) = false;
+              id(house_up_state) = false;
+              id(house_down_state) = false;
+      # 4fach click
+      - timing:
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at least 50ms
+        then:
+          - cover.open: rolladen
+          - lambda: |-
+              if (!id(block_control).state) {
+                id(floor_up_state) = false;
+                id(floor_down_state) = false;
+                id(house_up_state) = true;
+                id(house_down_state) = false;
+              }
+          - delay: 2s
+          - lambda: |-
+              id(floor_up_state) = false;
+              id(floor_down_state) = false;
+              id(house_up_state) = false;
+              id(house_down_state) = false;
+      # Halten
+      - timing:
+          - ON for at least 2s
+        then:
+          - lambda: |-
+              id(manual_mode) = true;
+          - cover.open: rolladen
+    # Taste losgelassen - Manual Mode STOP
+    on_release:
+      then:
+        - lambda: |-
+            if(id(manual_mode)) {
+              id(manual_mode) = false;
+              auto call = id(rolladen).make_call();
+              call.set_command_stop();
+              call.perform();
+            }
+
+  - platform: gpio
+    pin: GPIO5
+    name: "Shelly 2.5 Close Button"
+    internal: true
+    id: switch2
+    filters:
+      - delayed_on_off: 20ms
+    on_multi_click:
+      # Einzelclick
+      - timing:
+          - ON for at most 400ms
+          - OFF for at least 300ms
+        then:
+          - cover.close: rolladen
+          - delay: 2s
+          - cover.stop: rolladen
+      # Doppelclick
+      - timing:
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at least 300ms
+        then:
+          - cover.close: rolladen
+      # 3fach click
+      - timing:
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at least 300ms
+        then:
+          - cover.close: rolladen
+          - lambda: |-
+              if (!id(block_control).state) {
+                id(floor_up_state) = false;
+                id(floor_down_state) = true;
+                id(house_up_state) = false;
+                id(house_down_state) = false;
+              }
+          - delay: 2s
+          - lambda: |-
+              id(floor_up_state) = false;
+              id(floor_down_state) = false;
+              id(house_up_state) = false;
+              id(house_down_state) = false;
+      # 4fach click
+      - timing:
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at most 300ms
+          - ON for at most 400ms
+          - OFF for at least 50ms
+        then:
+          - cover.close: rolladen
+          - lambda: |-
+              if (!id(block_control).state) {
+                id(floor_up_state) = false;
+                id(floor_down_state) = false;
+                id(house_up_state) = false;
+                id(house_down_state) = true;
+              }
+          - delay: 2s
+          - lambda: |-
+              id(floor_up_state) = false;
+              id(floor_down_state) = false;
+              id(house_up_state) = false;
+              id(house_down_state) = false;
+      # Halten
+      - timing:
+          - ON for at least 2s
+        then:
+          - lambda: |-
+              id(manual_mode) = true;
+          - cover.close: rolladen
+    # Taste losgelassen - Manual Mode STOP
+    on_release:
+      then:
+        - lambda: |-
+            if(id(manual_mode)) {
+              id(manual_mode) = false;
+              auto call = id(rolladen).make_call();
+              call.set_command_stop();
+              call.perform();
+            }
+
+  - platform: gpio
+    pin: GPIO16
+    name: "ade7953 IRQ pin"
+    internal: true
+    
+    
+  ### Komfort funktionen für die Taster
+  - platform: template
+    id: open_floor
+    name: "Rollo Flur Etage hoch"
+    lambda: |-
+      if (id(floor_up_state)) {
+        return true;
+      } else {
+        return false;
+      }
+    
+  - platform: template
+    id: close_floor
+    name: "Rollo Flur Etage runter"
+    lambda: |-
+      if (id(floor_down_state)) {
+        return true;
+      } else {
+        return false;
+      }
+    
+  - platform: template
+    id: open_house
+    name: "Rollo Flur Haus hoch"
+    lambda: |-
+      if (id(house_up_state)) {
+        return true;
+      } else {
+        return false;
+      }
+    
+  - platform: template
+    id: close_house
+    name: "Rollo Flur Haus runter"
+    lambda: |-
+      if (id(house_down_state)) {
+        return true;
+      } else {
+        return false;
+      }
+
+#### Rollo Sensor basiert steuern / Zeit für Positionserkennung ###
+cover:
+  - platform: current_based
+    name: "Rollo_Flur"
+    id: rolladen
+    start_sensing_delay: 1.0s
+    
+    open_sensor: open_current_sensor
+    open_moving_current_threshold: 0.2
+    open_obstacle_current_threshold: 0.8
+    open_duration: 34s
+    open_action:
+      - switch.turn_on: open_relay
+    
+    close_sensor: close_current_sensor
+    close_moving_current_threshold: 0.2
+    close_obstacle_current_threshold: 0.8
+    close_duration: 26s
+    close_action:
+      - switch.turn_on: close_relay
+
+    stop_action:
+      - switch.turn_off: open_relay
+      - switch.turn_off: close_relay
+
+#### I2C für Messungen intern
+i2c:
+  sda: GPIO12
+  scl: GPIO14
+  
+#### Sensoren
+sensor:
+  - platform: ade7953
+    irq_pin: GPIO16
+    voltage:
+      name: ADE7953 Voltage
+      internal: true
+      filters:
+        - throttle: 5s
+    current_a:
+      name: ADE7953 Current A
+      id: close_current_sensor
+      internal: true
+    current_b:
+      name: ADE7953 Current B
+      id: open_current_sensor
+      internal: true
+    active_power_a:
+      name: ADE7953 Active Power A
+      internal: true
+    active_power_b:
+      name: ADE7953 Active Power B
+      internal: true
+    update_interval: 0.5s
+
+  - platform: ntc
+    sensor: temp_resistance_reading
+    name: "Rollo Flur Temperature"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    calibration:
+      b_constant: 3350
+      reference_resistance: 10kOhm
+      reference_temperature: 298.15K
+    on_value_range:
+      above: 90
+      then: # Security shutdown by overheating
+        - switch.turn_on: _shutdown
+
+  - platform: resistance
+    id: temp_resistance_reading
+    sensor: temp_analog_reading
+    configuration: DOWNSTREAM
+    resistor: 32kOhm
+    internal: true
+
+  - platform: adc
+    id: temp_analog_reading
+    pin: A0
+    update_interval: 30s
+    internal: true
+    
+  - platform: wifi_signal
+    name: "Rollo Flur WiFi Signal"
+    update_interval: 60s
+
+#### Status LED
+status_led:
+  pin:
+    number: GPIO0
+    inverted: yes
