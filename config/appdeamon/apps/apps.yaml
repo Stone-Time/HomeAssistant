@@ -1,0 +1,85 @@
+---
+nspanel-buero:
+  module: nspanel-lovelace-ui
+  class: NsPanelLovelaceUIManager
+  config:
+    panelRecvTopic: "tele/BueroNSPanel/RESULT"
+    panelSendTopic: "cmnd/BueroNSPanel/CustomSend"
+    model: "us-p"
+    sleepTimeout: 20
+    sleepBrightness:
+      - time: "5:00:00"
+        value: 20
+      - time: "22:00:00"
+        value: 0
+    sleepOverride:
+      entity: input_boolean.videomode
+      brightness: 0
+    locale: "de_DE"
+    defaultBackgroundColor: "black"
+    screensaver:
+      entity: weather.zuhause
+    cards:
+      - type: cardThermo
+        title: Temperatur
+        entity: climate.buro_thermostat
+      - type: cardGrid
+        title: Einzel
+        entities:
+          - entity: light.stonetimelogo
+            name: StoneTime Logo
+            icon: mdi:led-strip
+          - entity: switch.switchbuerodesk
+            name: Schreibtisch
+            icon: mdi:lightbulb-outline
+
+smart-shutters:
+  module: smart-shutters
+  class: SmartShutters
+  dependencies: 
+    - holidays
+  sensorentitys:
+    light: sensor.garage_lichtsensor_ausen_current_illumination
+    temperature: sensor.garage_thermometer_ausen_actual_temperature
+    sun: sensor.sonnenstand
+    holidaymode: input_boolean.urlaubsmodus
+    shutterstate: input_boolean.tag_nacht_rollo_modus
+  times:
+    - open_from: input_datetime.rollozeiten_arbeitstag_hoch_ab
+      open_to: input_datetime.rollozeiten_arbeitstag_hoch_bis
+      close_from: input_datetime.rollozeiten_arbeitstag_runter_ab
+      close_to: input_datetime.rollozeiten_arbeitstag_runter_bis
+      normal_weekday:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+    - open_from: input_datetime.rollozeiten_urlaub_frei_hoch_ab
+      open_to: input_datetime.rollozeiten_urlaub_frei_hoch_bis
+      close_from: input_datetime.rollozeiten_urlaub_frei_runter_ab
+      close_to: input_datetime.rollozeiten_urlaub_frei_runter_bis
+      normal_weekday:
+        - sat
+        - sun
+      vacation_weekday:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+        - sat
+        - sun
+  limits:
+    temp: input_number.rolloconfig_temperatur
+    light: input_number.rolloconfig_aussenlicht
+    sun: input_number.rolloconfig_sonnenstand
+  scenes:
+    shutterup:
+      - entity: scene.automatisierungsszene_rolladen_hoch
+      - entity: scene.automatisierung_led_licht_abend_aus
+    shutterdown:
+      - entity: scene.automatisierungsszene_rolladen_runter
+      - entity: scene.licht_abend
+
+
